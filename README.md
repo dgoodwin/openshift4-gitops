@@ -60,10 +60,13 @@ ArgoCD does support adding plugins for this. However parameters may be hardcoded
 The [identity-providers] directory contains an example for deploying a HTPasswd OAuth provider, and the associated secret. Deploying this as an ArgoCD application should allow you to login to your cluster as user1 / MyPassword!. For information on how this secret was created, see the [OpenShift 4 Documentation](https://docs.openshift.com/container-platform/4.1/authentication/identity_providers/configuring-htpasswd-identity-provider.html#configuring-htpasswd-identity-provider).
 
 ```bash
-argocd app create htpasswd-oauth --repo https://github.com/dgoodwin/openshift4-gitops.git --path=identity-providers --dest-server=https://kubernetes.default.svc
+argocd app create htpasswd-oauth --repo https://github.com/dgoodwin/openshift4-gitops.git --path=identity-providers --dest-server=https://kubernetes.default.svc --loglevel=debug --dest-namespace=openshift-config
 argocd app sync htpasswd-oauth
 ```
 
+This example includes a global OAuth config resource, and a namespaced secret.
+
+TODO: How does this example know that the secret openshift-authentication/v4-0-config-user-idp-0-file-data should be pruned?
 
 
 
