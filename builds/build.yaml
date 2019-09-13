@@ -35,6 +35,5 @@ spec:
     tolerations:
     - effect: NoSchedule
       key: node-role.kubernetes.io/builds
-  operator: Exists
 
 
