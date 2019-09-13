@@ -29,6 +29,43 @@ argocd cluster add argocd/api-dgoodwin-dev-new-installer-openshift-com:6443/syst
 
 # Configuring OpenShift 4
 
+The following section demonstrates the use of ArgoCD to delivery some of the available [OpenShift v4 Cluster Customizations](https://docs.openshift.com/container-platform/4.1/installing/install_config/customizations.html).
+
+## Identity Provider
+
+The [identity-providers](./identity-providers) directory contains an example for deploying a HTPasswd OAuth provider, and the associated secret. Deploying this as an ArgoCD application should allow you to login to your cluster as user1 / MyPassword!. For information on how this secret was created, see the [OpenShift 4 Documentation](https://docs.openshift.com/container-platform/4.1/authentication/identity_providers/configuring-htpasswd-identity-provider.html#configuring-htpasswd-identity-provider).
+
+```bash
+argocd app create htpasswd-oauth --repo https://github.com/dgoodwin/openshift4-gitops.git --path=identity-providers --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-config
+argocd app sync htpasswd-oauth
+```
+
+This example includes a global OAuth config resource, and a namespaced secret.
+
+TODO: How does this example know that the secret openshift-authentication/v4-0-config-user-idp-0-file-data should be pruned?
+
+## Builds
+
+The [builds](./builds) directory contains an example global Build configuration.
+
+```bash
+argocd app create builds-config --repo https://github.com/dgoodwin/openshift4-gitops.git --path=builds --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-config
+argocd app sync builds-config
+```
+
+TODO: The --dest-namespace here is odd as this example contains only a global resource.
+
+## Console
+
+The [console](./console) directory contains a simple configuration for the OpenShift console which simply changes the logout behavior to redirect to Google.
+
+```bash
+argocd app create console-config --repo https://github.com/dgoodwin/openshift4-gitops.git --path=console --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-config
+argocd app sync console-config
+```
+
+TODO: The --dest-namespace here is odd as this example contains only a global resource.
+
 ## Machine Sets
 
 The machine-sets sub-dir contains an example MachineSet being deployed as an application via ArgoCD:
@@ -54,30 +91,6 @@ A standard OpenShift 4 cluster with 3 compute nodes in us-east-1 comes with 6 Ma
 Ksonnet is dead. Kustomize does not think you should be doing anything based on parameters unless they're on disk. I believe Helm requires installing another component. (Tiller) Can we make Kustomize work somehow or should we explore adding another [Parameter Overrides](https://argoproj.github.io/argo-cd/user-guide/parameters/) mechanism to Argo?
 
 ArgoCD does support adding plugins for this. However parameters may be hardcoded to only be possible for Help and Ksonnet. How could a custom config management plugin be provided variables?
-
-## Identity Provider
-
-The [identity-providers](./identity-providers) directory contains an example for deploying a HTPasswd OAuth provider, and the associated secret. Deploying this as an ArgoCD application should allow you to login to your cluster as user1 / MyPassword!. For information on how this secret was created, see the [OpenShift 4 Documentation](https://docs.openshift.com/container-platform/4.1/authentication/identity_providers/configuring-htpasswd-identity-provider.html#configuring-htpasswd-identity-provider).
-
-```bash
-argocd app create htpasswd-oauth --repo https://github.com/dgoodwin/openshift4-gitops.git --path=identity-providers --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-config
-argocd app sync htpasswd-oauth
-```
-
-This example includes a global OAuth config resource, and a namespaced secret.
-
-TODO: How does this example know that the secret openshift-authentication/v4-0-config-user-idp-0-file-data should be pruned?
-
-## Builds
-
-The [builds](./builds) directory contains an example global Build configuration.
-
-```bash
-argocd app create builds-config --repo https://github.com/dgoodwin/openshift4-gitops.git --path=builds --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-config
-argocd app sync builds-config
-```
-
-TODO: The --dest-namespace here is odd as this example contains only a global resource.
 
 
 # Possible ArgoCD Issues/Enhancements
