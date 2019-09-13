@@ -57,16 +57,37 @@ ArgoCD does support adding plugins for this. However parameters may be hardcoded
 
 ## Identity Provider
 
-The [identity-providers] directory contains an example for deploying a HTPasswd OAuth provider, and the associated secret. Deploying this as an ArgoCD application should allow you to login to your cluster as user1 / MyPassword!. For information on how this secret was created, see the [OpenShift 4 Documentation](https://docs.openshift.com/container-platform/4.1/authentication/identity_providers/configuring-htpasswd-identity-provider.html#configuring-htpasswd-identity-provider).
+The [identity-providers](./identity-providers) directory contains an example for deploying a HTPasswd OAuth provider, and the associated secret. Deploying this as an ArgoCD application should allow you to login to your cluster as user1 / MyPassword!. For information on how this secret was created, see the [OpenShift 4 Documentation](https://docs.openshift.com/container-platform/4.1/authentication/identity_providers/configuring-htpasswd-identity-provider.html#configuring-htpasswd-identity-provider).
 
 ```bash
-argocd app create htpasswd-oauth --repo https://github.com/dgoodwin/openshift4-gitops.git --path=identity-providers --dest-server=https://kubernetes.default.svc --loglevel=debug --dest-namespace=openshift-config
+argocd app create htpasswd-oauth --repo https://github.com/dgoodwin/openshift4-gitops.git --path=identity-providers --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-config
 argocd app sync htpasswd-oauth
 ```
 
 This example includes a global OAuth config resource, and a namespaced secret.
 
 TODO: How does this example know that the secret openshift-authentication/v4-0-config-user-idp-0-file-data should be pruned?
+
+## Builds
+
+The [builds](./builds) directory contains an example global Build configuration.
+
+```bash
+argocd app create builds-config --repo https://github.com/dgoodwin/openshift4-gitops.git --path=builds --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-config
+argocd app sync builds-config
+```
+
+TODO: The --dest-namespace here is odd as this example contains only a global resource.
+
+
+# Possible ArgoCD Issues/Enhancements
+
+ 1. Create an application for a global CR without having to specify a --dest-namespace.
+ 1. Create an application for a namespaced CR (explicit in the yaml in git) without having to specify a --dest-namespace.
+ 1. CRD for a stronger Cluster API representation. (rather than Secret with a specific label)
+ 1. Concept of properties attached to a Cluster.
+ 1. Higher level "ApplicationSet" construct which automatically creates Applications for Clusters with a particular label.
+ 1. OpenShift Template Processing Support (or some other kind of parameter templating)
 
 
 
