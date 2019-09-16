@@ -42,7 +42,9 @@ argocd app sync htpasswd-oauth
 
 This example includes a global OAuth config resource, and a namespaced secret.
 
-TODO: How does this example know that the secret openshift-authentication/v4-0-config-user-idp-0-file-data should be pruned?
+WARNING: The openshift-oauth operator copies your specified secrets to the openshift-authentication, including their labels. One of these labels in added by ArgoCD to indicate the secret is owned by the htpasswd-oauth application. When this is copied, it causes ArgoCD to now see the copied secret as a resource it doesn't know about, is owned by this app, thus should be pruned. You can disable pruning on
+
+WARNING: Deleting this htpasswd-oauth example Application from ArgoCD will fail with "DeletionError  oauths.config.openshift.io "cluster" is forbidden: deleting required oauths.config.openshift.io resource, named cluster, is not allowed". You can work around this failure with `kubectl edit applications.argoproj.io htpasswd-oauth` and removing the finalizer.
 
 ## Builds
 
@@ -102,6 +104,8 @@ ArgoCD does support adding plugins for this. However parameters may be hardcoded
  1. Higher level "ApplicationSet" construct which automatically creates Applications for Clusters with a particular label.
  1. OpenShift Template Processing Support (or some other kind of parameter templating)
 
+## Open Questions
 
+ * For a CRD backed project, why is there a separate login to an application URL?
 
 
