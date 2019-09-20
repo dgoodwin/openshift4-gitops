@@ -107,5 +107,8 @@ ArgoCD does support adding plugins for this. However parameters may be hardcoded
 ## Open Questions
 
  * For a CRD backed project, why is there a separate login to an application URL?
+ * Does ArgoCD watch the remote cluster?
+ * How many clusters has Argo been known to scale to?
+ * Push vs Pull Model
 
 
