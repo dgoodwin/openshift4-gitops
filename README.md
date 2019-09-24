@@ -92,6 +92,8 @@ A standard OpenShift 4 cluster with 3 compute nodes in us-east-1 comes with 6 Ma
 
 Ksonnet is dead. Kustomize does not think you should be doing anything based on parameters unless they're on disk. I believe Helm requires installing another component. (Tiller) Can we make Kustomize work somehow or should we explore adding another [Parameter Overrides](https://argoproj.github.io/argo-cd/user-guide/parameters/) mechanism to Argo?
 
+Helm 3 should GA soon, is entirely client side, wi
+
 ArgoCD does support adding plugins for this. However parameters may be hardcoded to only be possible for Help and Ksonnet. How could a custom config management plugin be provided variables?
 
 
@@ -110,5 +112,6 @@ ArgoCD does support adding plugins for this. However parameters may be hardcoded
  * Does ArgoCD watch the remote cluster?
  * How many clusters has Argo been known to scale to?
  * Push vs Pull Model
+ * Helm 3 Support in ArgoCD
 
 
