@@ -3,15 +3,13 @@ Testing OpenShift 4 Cluster Configuration With Gitops
 
 ## Installing ArgoCD on OpenShift 4
 
-These steps will hopefully be replaced by an ArgoCD operator on OperatorHub in the near future.
+These manual steps will hopefully be replaced by an ArgoCD operator on OperatorHub in the near future.
 
 ```bash
 oc new-project argocd
-# Apply modified ArgoCD (added --insecure to disable in-container SSL) from https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 oc apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 oc create route passthrough --service=argocd-server
 
-# TODO: would rather switch this to disable the in-container SSL and let openshift handle it,
 # but this does not seem to work for console logins...
 #oc apply -n argocd -f argocd.yaml
 #oc create route edge --service=argocd-server
@@ -24,29 +22,34 @@ argocd login argocd-server-argocd.apps.dgoodwin-dev.new-installer.openshift.com:
 
 # Change the ArgoCD password:
 argocd account update-password
-argocd cluster add argocd/api-dgoodwin-dev-new-installer-openshift-com:6443/system:admin --in-cluster
 ```
 
 # Configuring OpenShift 4
 
+## General Guidelines
+
+ 1. ArgoCD "Applications" (despite the name) can be used to deliver global custom resources such as those which configure OpenShift v4 clusters.
+ 1. When creating an application you will be required to provide a namespace. In the case of an application delivering global custom resources this doesn't make a lot of sense, but you can provide the name of any namespace to get past this issue.
+ 1. By default Argo will look to prune resources, should you ever delete your application that delivered them. In the case of OpenShift v4 global configuration custom resources, these often are blocked from being deleted, which can cause Argo to become stuck. If however in your configuration git repository you add the `argocd.argoproj.io/sync-options: Prune=false` annotation to your custom resources, this problem can be avoided. If you do run into this problem, you will need to manually "kubectl edit" the Argo Application and remove the finalizer which blocks until resources are pruned.
+
+## Examples
+
 The following section demonstrates the use of ArgoCD to delivery some of the available [OpenShift v4 Cluster Customizations](https://docs.openshift.com/container-platform/4.1/installing/install_config/customizations.html).
 
-## Identity Provider
+### Identity Provider
 
-The [identity-providers](./identity-providers) directory contains an example for deploying a HTPasswd OAuth provider, and the associated secret. Deploying this as an ArgoCD application should allow you to login to your cluster as user1 / MyPassword!. For information on how this secret was created, see the [OpenShift 4 Documentation](https://docs.openshift.com/container-platform/4.1/authentication/identity_providers/configuring-htpasswd-identity-provider.html#configuring-htpasswd-identity-provider).
+The [identity-providers](./identity-providers) directory contains an example for deploying a HTPasswd OAuth provider, and the associated secret. Deploying this as an ArgoCD application should allow you to login to your cluster as *user1 / MyPassword!*. For information on how this secret was created, see the [OpenShift 4 Documentation](https://docs.openshift.com/container-platform/4.1/authentication/identity_providers/configuring-htpasswd-identity-provider.html#configuring-htpasswd-identity-provider).
 
 ```bash
 argocd app create htpasswd-oauth --repo https://github.com/dgoodwin/openshift4-gitops.git --path=identity-providers --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-config
 argocd app sync htpasswd-oauth
 ```
 
-This example includes a global OAuth config resource, and a namespaced secret.
+This example includes both a global OAuth config resource, and a namespaced secret.
 
-WARNING: The openshift-oauth operator copies your specified secrets to the openshift-authentication, including their labels. One of these labels in added by ArgoCD to indicate the secret is owned by the htpasswd-oauth application. When this is copied, it causes ArgoCD to now see the copied secret as a resource it doesn't know about, is owned by this app, thus should be pruned. You can disable pruning on
+WARNING: The openshift-oauth operator copies your specified secrets to the openshift-authentication, including their labels. One of these labels in added by ArgoCD to indicate the secret is owned by the htpasswd-oauth application. When this is copied, it causes ArgoCD to now see the copied secret as a resource it doesn't know about, is owned by this app, thus should be pruned. You can disable pruning with the normal annotation but will still see this secret as out of sync in the UI.
 
-WARNING: Deleting this htpasswd-oauth example Application from ArgoCD will fail with "DeletionError  oauths.config.openshift.io "cluster" is forbidden: deleting required oauths.config.openshift.io resource, named cluster, is not allowed". You can work around this failure with `kubectl edit applications.argoproj.io htpasswd-oauth` and removing the finalizer.
-
-## Builds
+### Builds
 
 The [builds](./builds) directory contains an example global Build configuration.
 
@@ -55,9 +58,7 @@ argocd app create builds-config --repo https://github.com/dgoodwin/openshift4-gi
 argocd app sync builds-config
 ```
 
-TODO: The --dest-namespace here is odd as this example contains only a global resource.
-
-## Console
+### Console
 
 The [console](./console) directory contains a simple configuration for the OpenShift console which simply changes the logout behavior to redirect to Google.
 
@@ -68,7 +69,7 @@ argocd app sync console-config
 
 TODO: The --dest-namespace here is odd as this example contains only a global resource.
 
-## Machine Sets
+### Machine Sets
 
 The machine-sets sub-dir contains an example MachineSet being deployed as an application via ArgoCD:
 
@@ -85,33 +86,10 @@ A standard OpenShift 4 cluster with 3 compute nodes in us-east-1 comes with 6 Ma
 
  - MachineSet Name
  - Selector
- - IAM Instance Profile (generated by Installer presumably)
+ - IAM Instance Profile
  - Security Group Name
  - Subnet
  - AWS Tags
 
-Ksonnet is dead. Kustomize does not think you should be doing anything based on parameters unless they're on disk. I believe Helm requires installing another component. (Tiller) Can we make Kustomize work somehow or should we explore adding another [Parameter Overrides](https://argoproj.github.io/argo-cd/user-guide/parameters/) mechanism to Argo?
-
-Helm 3 should GA soon, is entirely client side, wi
-
-ArgoCD does support adding plugins for this. However parameters may be hardcoded to only be possible for Help and Ksonnet. How could a custom config management plugin be provided variables?
-
-
-# Possible ArgoCD Issues/Enhancements
-
- 1. Create an application for a global CR without having to specify a --dest-namespace.
- 1. Create an application for a namespaced CR (explicit in the yaml in git) without having to specify a --dest-namespace.
- 1. CRD for a stronger Cluster API representation. (rather than Secret with a specific label)
- 1. Concept of properties attached to a Cluster.
- 1. Higher level "ApplicationSet" construct which automatically creates Applications for Clusters with a particular label.
- 1. OpenShift Template Processing Support (or some other kind of parameter templating)
-
-## Open Questions
-
- * For a CRD backed project, why is there a separate login to an application URL?
- * Does ArgoCD watch the remote cluster?
- * How many clusters has Argo been known to scale to?
- * Push vs Pull Model
- * Helm 3 Support in ArgoCD
-
+TODO: Should we recommend against using MachineSets with gitops and Argo? Or is there a templating solution we should explore? In this case the value we want to template is a fact about the individual cluster it's being deployed to.
 
