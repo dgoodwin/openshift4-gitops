@@ -1,5 +1,18 @@
 # openshift4-gitops
-Testing OpenShift 4 Cluster Configuration With Gitops
+
+In this guide we will explore managing OpenShift 4 cluster configurations with GitOps using ArgoCD.
+
+# What is ArgoCD
+
+ArgoCD is a declarative continuous delivery tool that leverages GitOps to maintain cluster resources. ArgoCD is implemented as a controller which is continuously monitoring application definitions and configurations defined in a Git repository and compares the desired state of those configurations with their live state on the cluster. Configurations which deviate from their desired state in the Git repository are classified as `OutOfSync`. ArgoCD reports these differences and allows administrators to automatically or manually resync configurations to the desired state.
+
+# Prerequisites
+
+The examples contained in this guide require,
+
+* the [oc](https://access.redhat.com/downloads/content/290) OpenShift client command-line tool
+* a [kubeconfig](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/) file for an existing OpenShift cluster (default location is `~/.kube/config`)
+* the [argocd](https://github.com/argoproj/argo-cd/releases/latest) command-line tool
 
 ## Installing ArgoCD on OpenShift 4
 
@@ -34,11 +47,11 @@ argocd account update-password
 
 ## Examples
 
-The following section demonstrates the use of ArgoCD to delivery some of the available [OpenShift v4 Cluster Customizations](https://docs.openshift.com/container-platform/4.1/installing/install_config/customizations.html).
+The following section demonstrates the use of ArgoCD to deliver some of the available [OpenShift v4 Cluster Customizations](https://docs.openshift.com/container-platform/4.1/installing/install_config/customizations.html).
 
 ### Identity Provider
 
-The [identity-providers](./identity-providers) directory contains an example for deploying a HTPasswd OAuth provider, and the associated secret. Deploying this as an ArgoCD application should allow you to login to your cluster as *user1 / MyPassword!*. For information on how this secret was created, see the [OpenShift 4 Documentation](https://docs.openshift.com/container-platform/4.1/authentication/identity_providers/configuring-htpasswd-identity-provider.html#configuring-htpasswd-identity-provider).
+The [identity-providers](./identity-providers) directory contains an example for deploying an HTPasswd OAuth provider, and the associated secret. Deploying this as an ArgoCD application should allow you to login to your cluster as *user1 / MyPassword!*. For information on how this secret was created, see the [OpenShift 4 Documentation](https://docs.openshift.com/container-platform/4.1/authentication/identity_providers/configuring-htpasswd-identity-provider.html#configuring-htpasswd-identity-provider).
 
 ```bash
 argocd app create htpasswd-oauth --repo https://github.com/dgoodwin/openshift4-gitops.git --path=identity-providers --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-config
@@ -58,6 +71,15 @@ argocd app create builds-config --repo https://github.com/dgoodwin/openshift4-gi
 argocd app sync builds-config
 ```
 
+### Registries
+
+The [image](./image) directory contains an example global Image configuration which sets `allowedRegistriesForImport`, limiting the container image registries from which normal users may import images to only include `quay.io`.
+
+```bash
+argocd app create image-config --repo https://github.com/dgoodwin/openshift4-gitops.git --path=image --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-config
+argocd app sync image-config
+```
+
 ### Console
 
 The [console](./console) directory contains a simple configuration for the OpenShift console which simply changes the logout behavior to redirect to Google.
@@ -69,18 +91,26 @@ argocd app sync console-config
 
 TODO: The --dest-namespace here is odd as this example contains only a global resource.
 
+
+### Scheduler Policy
+
+The [scheduler](./scheduler) directory contains an example scheduler policy configmap which can be deployed to override the default scheduler policy. For information regarding scheduler predicates, see the [OpenShift 4 Documentation](https://docs.openshift.com/container-platform/4.1/nodes/scheduling/nodes-scheduler-default.html#nodes-scheduler-default-predicates_nodes-scheduler-default).
+
+```bash
+argocd app create scheduler-policy --repo https://github.com/dgoodwin/openshift4-gitops.git --path=scheduler --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-kube-scheduler
+argocd app sync scheduler-policy
+```
+
 ### Machine Sets
 
-The machine-sets sub-dir contains an example MachineSet being deployed as an application via ArgoCD:
+The [machine-sets](./machine-sets) directory contains an example `MachineSet` being deployed as an application via ArgoCD:
 
 ```bash
 argocd app create machineset --repo https://github.com/dgoodwin/openshift4-gitops.git --path=machine-sets --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-machine-api
 argocd app sync machineset
 ```
 
-However there is a problem here, if you [view the
-yaml](./machine-sets/machinesets.yaml) you will see the cluster's generated
-InfraID referenced multiple times. This value is generated by the OpenShift installer and used in the naming of many cloud objects. Committing cluster config will be problematic as this value is not known before install, and not consistent across clusters.
+However there is a problem here, if you [view the yaml](./machine-sets/machinesets.yaml) you will see the cluster's generated InfraID referenced multiple times. This value is generated by the OpenShift installer and used in the naming of many cloud objects. Committing cluster config will be problematic as this value is not known before install, and not consistent across clusters.
 
 A standard OpenShift 4 cluster with 3 compute nodes in us-east-1 comes with 6 MachineSets, one per AZ (in my account), with only three of them scaled to 1 replicas. Each MachineSet references the generated InfraID roughly 9 times:
 
