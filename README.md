@@ -10,9 +10,12 @@ oc new-project argocd
 oc apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 oc create route passthrough --service=argocd-server
 
-# but this does not seem to work for console logins...
-#oc apply -n argocd -f argocd.yaml
-#oc create route edge --service=argocd-server
+# Patch ArgoCD Server so no TLS is configured on the server (--insecure)
+PATCH='{"spec":{"template":{"spec":{"$setElementOrder/containers":[{"name":"argocd-server"}],"containers":[{"command":["argocd-server","--insecure","--staticassets","/shared/app"],"name":"argocd-server"}]}}}}'
+oc -n argocd patch deployment argocd-server -p $PATCH
+# Expose the ArgoCD Server using an Edge OpenShift Route so TLS is used for incoming connections
+oc -n argocd create route edge argocd-server --service=argocd-server --port=http --insecure-policy=Redirect
+
 
 # Get the argoCD 'admin' password:
 ARGO_ADMIN_PASS=`kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-server -o name | cut -d'/' -f 2`
