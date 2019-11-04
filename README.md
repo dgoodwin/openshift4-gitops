@@ -1,5 +1,25 @@
 # openshift4-gitops
 
+<!-- TOC depthTo:3 -->
+
+- [What is ArgoCD](#What-is-ArgoCD)
+- [Prerequisites](#Prerequisites)
+- [Installing ArgoCD on Openshift 4](#Installing-ArgoCD-on-OpenShift-4)
+- [Configuring OpenShift 4](#Configuring-OpenShift-4)
+    - [General Guidelines](#General-Guidelines)
+    - [Examples](#Examples)
+        - [Identity Provider](#Identity-Provider)
+        - [Builds](#Builds)
+        - [Registries](#Registries)
+        - [Console](#Console)
+        - [Scheduler Policy](#Scheduler-Policy)
+        - [Machine Sets](#Machine-Sets)
+- [Multi-cluster Management](#Multi-cluster-Management)
+    - [Deploy Configuration to Multiple Clusters](#Deploy-Configuration-to-Multiple-Clusters)
+    - [Customizing Configuration By Cluster](#Customizing-Configuration-By-Cluster)
+
+<!-- /TOC -->
+
 In this guide we will explore managing OpenShift 4 cluster configurations with GitOps using ArgoCD.
 
 # What is ArgoCD
@@ -67,7 +87,7 @@ WARNING: The openshift-oauth operator copies your specified secrets to the opens
 The [builds](./builds) directory contains an example global Build configuration.
 
 ```bash
-argocd app create builds-config --repo https://github.com/dgoodwin/openshift4-gitops.git --path=builds --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-config
+argocd app create builds-config --repo https://github.com/dgoodwin/openshift4-gitops.git --path=builds/base --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-config
 argocd app sync builds-config
 ```
 
@@ -123,3 +143,211 @@ A standard OpenShift 4 cluster with 3 compute nodes in us-east-1 comes with 6 Ma
 
 TODO: Should we recommend against using MachineSets with gitops and Argo? Or is there a templating solution we should explore? In this case the value we want to template is a fact about the individual cluster it's being deployed to.
 
+# Multi-cluster Management
+
+In this example we will manage the build configuration of two OpenShift 4.x clusters, a pre-production (context: `pre`) cluster and a production (context: `pro`) cluster.
+
+The example build configuration we will deploy contains customizations to be made per cluster environment.
+
+## Deploy Configuration to Multiple Clusters
+
+Ensure we have access to both clusters via kubeconfig context,
+
+```bash
+$ oc --context pre get nodes
+NAME                           STATUS    ROLES     AGE       VERSION
+ip-10-0-133-97.ec2.internal    Ready     master    5h        v1.14.6+7e13ab9a7
+ip-10-0-136-91.ec2.internal    Ready     worker    5h        v1.14.6+7e13ab9a7
+ip-10-0-144-237.ec2.internal   Ready     worker    5h        v1.14.6+7e13ab9a7
+ip-10-0-147-216.ec2.internal   Ready     master    5h        v1.14.6+7e13ab9a7
+ip-10-0-165-161.ec2.internal   Ready     master    5h        v1.14.6+7e13ab9a7
+ip-10-0-169-135.ec2.internal   Ready     worker    5h        v1.14.6+7e13ab9a7
+```
+
+```bash
+$ oc --context pro get nodes
+NAME                           STATUS    ROLES     AGE       VERSION
+ip-10-0-133-100.ec2.internal   Ready     master    5h        v1.14.6+7e13ab9a7
+ip-10-0-138-244.ec2.internal   Ready     worker    5h        v1.14.6+7e13ab9a7
+ip-10-0-146-118.ec2.internal   Ready     master    5h        v1.14.6+7e13ab9a7
+ip-10-0-151-40.ec2.internal    Ready     worker    5h        v1.14.6+7e13ab9a7
+ip-10-0-165-83.ec2.internal    Ready     worker    5h        v1.14.6+7e13ab9a7
+ip-10-0-175-20.ec2.internal    Ready     master    5h        v1.14.6+7e13ab9a7
+```
+
+NOTE: Setting up multiple contexts with separate kubeconfigs can be achieved by [merging kubeconfigs](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/).
+
+In order to merge several kubeconfigs, ensure that each kubeconfig you wish to merge is configured with a user unique to the particular kubeconfig. For example, if each kubeconfig you wish to merge contains an `admin` user then that user would need to be changed to something unique to the cluster identified by the kubeconfig such as `admin1`. Simply update the user string in the kubeconfig.
+
+For this example, we will have two kubeconfig files `cluster1.kubeconfig` and `cluster2.kubeconfig` that will be merged into `merged-config.kubeconfig`.
+
+```bash
+export KUBECONFIG="merged-config.kubeconfig:cluster1.kubeconfig:cluster2.kubeconfig"
+
+$ oc config get-contexts 
+CURRENT   NAME    CLUSTER    AUTHINFO    NAMESPACE
+          admin1  cluster1   admin1
+          admin2  cluster2   admin2
+
+$ oc config set-context pre --cluster=cluster1 --user=admin1
+Context "pre" created.
+
+$ oc config set-context pro --cluster=cluster2 --user=admin2
+Context "pro" created.
+```
+
+Next, ensure that each cluster has been registered with ArgoCD. Clusters are added to ArgoCD by specifying the context,
+
+```bash
+$ argocd cluster add
+ERRO[0000] Choose a context name from:
+CURRENT  NAME    CLUSTER    SERVER
+         admin1  cluster1   https://api.cluster1.new-installer.openshift.com:6443
+         admin2  cluster2   https://api.cluster2.new-installer.openshift.com:6443
+*        pre     cluster1   https://api.cluster1.new-installer.openshift.com:6443
+         pro     cluster2   https://api.cluster2.new-installer.openshift.com:6443
+
+$ argocd cluster add pre
+INFO[0000] ServiceAccount "argocd-manager" created in namespace "kube-system"
+INFO[0000] ClusterRole "argocd-manager-role" created
+INFO[0000] ClusterRoleBinding "argocd-manager-role-binding" created, bound "argocd-manager" to "argocd-manager-role"
+Cluster 'pre' added
+
+$ argocd cluster add pro
+INFO[0000] ServiceAccount "argocd-manager" created in namespace "kube-system"
+INFO[0000] ClusterRole "argocd-manager-role" created
+INFO[0000] ClusterRoleBinding "argocd-manager-role-binding" created, bound "argocd-manager" to "argocd-manager-role"
+Cluster 'pro' added
+
+$ argocd cluster list
+SERVER                                                  NAME  STATUS      MESSAGE
+https://kubernetes.default.svc                                Successful
+https://api.cluster2.new-installer.openshift.com:6443   pro   Successful
+https://api.cluster1.new-installer.openshift.com:6443   pre   Successful
+```
+
+Add our build configuration repository to ArgoCD. The build configuration repository has a `pre` and `pro` kustomize overlay which will override the build `imageLabels` by cluster but we will start by deploying the base build configuration.
+
+```bash
+$ argocd repo add https://github.com/dgoodwin/openshift4-gitops.git
+```
+
+Deploy custom OpenShift build configuration to pre-production and production clusters,
+
+```bash
+$ argocd app create --project default \
+                   --name pre-builds \
+                   --repo https://github.com/dgoodwin/openshift4-gitops.git \
+                   --path builds/base \
+                   --dest-server https://api.cluster1.new-installer.openshift.com:6443 \
+                   --dest-namespace=openshift-config \
+                   --revision master
+
+$ argocd app create --project default \
+                   --name pro-builds \
+                   --repo https://github.com/dgoodwin/openshift4-gitops.git \
+                   --path builds/base \
+                   --dest-server https://api.cluster2.new-installer.openshift.com:6443 \
+                   --dest-namespace=openshift-config \
+                   --revision master
+```
+
+Sync configuration to both clusters as we have not defined an ArgoCD sync policy for the apps and must sync configurations manually.
+
+```bash
+$ argocd app sync pre-builds
+$ argocd app sync pro-builds
+```
+
+Ensure both configurations have been successfully synced,
+
+```bash
+$ argocd app list
+NAME        CLUSTER                                                 NAMESPACE         PROJECT  STATUS  HEALTH
+pre-builds  https://api.cluster1.new-installer.openshift.com:6443   openshift-config  default  Synced  Healthy
+pro-builds  https://api.cluster2.new-installer.openshift.com:6443   openshift-config  default  Synced  Healthy
+```
+
+Grab the modified build configuration from each cluster and ensure that it has been updated,
+
+```bash
+$ oc --context pre get build.config.openshift.io/cluster -o yaml -n openshift-config
+
+$ oc --context pro get build.config.openshift.io/cluster -o yaml -n openshift-config
+```
+
+## Customizing Configuration By Cluster
+
+In this example, we will modify our build configuration based on which cluster we are deploying to. ArgoCD leverages [kustomize](https://kustomize.io/) to manage configuration overrides across environments. In the `pre` and `pro` [overlay directories](https://github.com/dgoodwin/openshift4-gitops/tree/master/builds/overlays) of our git repository there are `kustomization` files which include patches to apply to the base configuration. We will specify the `overlays` directory containing our kustomizations as the application path instead of the `base` directory builds configuration directory.
+
+Deploy kustomized build configuration to pre-production and production clusters,
+
+```bash
+$ argocd app create --project default \
+                    --name pre-kustomize-builds \
+                    --repo https://github.com/dgoodwin/openshift4-gitops.git \
+                    --path builds/overlays/pre \
+                    --dest-server https://api.cluster1.new-installer.openshift.com:6443 \
+                    --dest-namespace openshift-config \
+                    --revision master \
+                    --sync-policy automated
+
+$ argocd app create --project default \
+                    --name pro-kustomize-builds \
+                    --repo https://github.com/dgoodwin/openshift4-gitops.git \
+                    --path builds/overlays/pro \
+                    --dest-server https://api.cluster2.new-installer.openshift.com:6443 \
+                    --dest-namespace openshift-config \
+                    --revision master \
+                    --sync-policy automated
+```
+
+Ensure that configuration applications have been synced successfully,
+
+```bash
+$ argocd app get pre-kustomize-builds
+Name:               pre-kustomize-builds
+Project:            default
+Server:             https://api.cluster1.new-installer.openshift.com:6443
+Namespace:          openshift-config
+URL:                https://argocd-server-argocd.apps.cluster1.new-installer.openshift.com/applications/pre-kustomize-builds
+Repo:               https://github.com/dgoodwin/openshift4-gitops.git
+Target:             pre
+Path:               builds/overlays/pre
+Sync Policy:        Automated
+Sync Status:        Synced to master (884a6db)
+Health Status:      Healthy
+
+GROUP                KIND   NAMESPACE         NAME     STATUS   HEALTH   HOOK  MESSAGE
+config.openshift.io  Build  openshift-config  cluster  Running  Synced         build.config.openshift.io/cluster configured
+config.openshift.io  Build                    cluster  Synced   Unknown
+```
+
+```bash
+$ argocd app get pro-kustomize-builds
+Name:               pro-kustomize-builds
+Project:            default
+Server:             https://api.cluster2.new-installer.openshift.com:6443
+Namespace:          openshift-config
+URL:                https://argocd-server-argocd.apps.cluster2.new-installer.openshift.com/applications/pro-kustomize-builds
+Repo:               https://github.com/dgoodwin/openshift4-gitops.git
+Target:             pro
+Path:               builds/overlays/pro
+Sync Policy:        Automated
+Sync Status:        Synced to master (884a6db)
+Health Status:      Healthy
+
+GROUP                KIND   NAMESPACE         NAME     STATUS   HEALTH   HOOK  MESSAGE
+config.openshift.io  Build  openshift-config  cluster  Running  Synced         build.config.openshift.io/cluster unchanged
+config.openshift.io  Build                    cluster  Synced   Unknown
+```
+
+Grab the `imageLabels` which have been modified per environment using kustomize,
+
+```bash
+$ oc --context pre get build.config.openshift.io/cluster -n openshift-config -o jsonpath='{.spec.buildDefaults.imageLabels}'
+[map[value:true name:preprodbuild]]
+
+$ oc --context pro get build.config.openshift.io/cluster -n openshift-config -o jsonpath='{.spec.buildDefaults.imageLabels}'
+[map[value:true name:prodbuild]]
+```
