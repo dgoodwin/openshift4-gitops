@@ -59,6 +59,8 @@ argocd login $ARGO_ROUTE:443 --username admin --password $ARGO_ADMIN_PASS --inse
 argocd account update-password
 ```
 
+NOTE: ArgoCD does not have any local users other than the built-in `admin` user. By default, only the `admin` user may interract with ArgoCD and its apps. Additional users can manage ArgoCD via SSO if configured. See the [ArgoCD Operator Manual](https://argoproj.github.io/argo-cd/operator-manual/sso/).
+
 # Configuring OpenShift 4
 
 ## General Guidelines
