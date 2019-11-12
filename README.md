@@ -14,6 +14,7 @@
         - [Console](#Console)
         - [Scheduler Policy](#Scheduler-Policy)
         - [Machine Sets](#Machine-Sets)
+        - [Operator Hub Operator](#Operator-Hub-Operator)
 - [Multi-cluster Management](#Multi-cluster-Management)
     - [Deploy Configuration to Multiple Clusters](#Deploy-Configuration-to-Multiple-Clusters)
     - [Customizing Configuration By Cluster](#Customizing-Configuration-By-Cluster)
@@ -51,11 +52,14 @@ oc create route passthrough --service=argocd-server
 ARGO_ADMIN_PASS=`kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-server -o name | cut -d'/' -f 2`
 
 # Login:
-argocd login argocd-server-argocd.apps.dgoodwin-dev.new-installer.openshift.com:443 --username admin --password $ARGO_ADMIN_PASS --insecure
+ARGO_ROUTE=`oc get route argocd-server -n argocd -o jsonpath='{.spec.host}'`
+argocd login $ARGO_ROUTE:443 --username admin --password $ARGO_ADMIN_PASS --insecure
 
 # Change the ArgoCD password:
 argocd account update-password
 ```
+
+NOTE: ArgoCD does not have any local users other than the built-in `admin` user. By default, only the `admin` user may interract with ArgoCD and its apps. Additional users can manage ArgoCD via SSO if configured. See the [ArgoCD Operator Manual](https://argoproj.github.io/argo-cd/operator-manual/sso/).
 
 # Configuring OpenShift 4
 
@@ -142,6 +146,16 @@ A standard OpenShift 4 cluster with 3 compute nodes in us-east-1 comes with 6 Ma
  - AWS Tags
 
 TODO: Should we recommend against using MachineSets with gitops and Argo? Or is there a templating solution we should explore? In this case the value we want to template is a fact about the individual cluster it's being deployed to.
+
+### Operator Hub Operator
+
+Deploy an operator from [Operator Hub](https://operatorhub.io/) by creating `OperatorGroup` and `Subscription` objects. In this example we will deploy the [grafana operator](https://operatorhub.io/operator/grafana-operator).
+
+```
+argocd app create grafana-operator --repo https://github.com/dgoodwin/openshift4-gitops.git --path=grafana-operator --dest-server=https://kubernetes.default.svc --dest-namespace=default
+argocd app sync grafana-operator
+```
+
 
 # Multi-cluster Management
 
