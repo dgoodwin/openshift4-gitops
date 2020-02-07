@@ -11,7 +11,7 @@ metadata:
   name: test-cm
   namespace: project-test
 ---
-apiVersion: v1
+apiVersion: apps.openshift.io/v1
 kind: DeploymentConfig
 metadata:
   labels:
