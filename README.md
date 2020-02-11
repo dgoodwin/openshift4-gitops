@@ -121,7 +121,7 @@ TODO: The --dest-namespace here is odd as this example contains only a global re
 The [scheduler](./scheduler) directory contains an example scheduler policy configmap which can be deployed to override the default scheduler policy. For information regarding scheduler predicates, see the [OpenShift 4 Documentation](https://docs.openshift.com/container-platform/4.1/nodes/scheduling/nodes-scheduler-default.html#nodes-scheduler-default-predicates_nodes-scheduler-default).
 
 ```bash
-argocd app create scheduler-policy --repo https://github.com/dgoodwin/openshift4-gitops.git --path=scheduler --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-kube-scheduler
+argocd app create scheduler-policy --repo https://github.com/dgoodwin/openshift4-gitops.git --path=scheduler --dest-server=https://kubernetes.default.svc --dest-namespace=openshift-config
 argocd app sync scheduler-policy
 ```
 
